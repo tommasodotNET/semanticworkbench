@@ -20,7 +20,7 @@ class SkillRegistry:
         self.skills = skills
         self.routine_stack = routine_stack
 
-    def get_skill(self, skill_name) -> Skill | None:
+    def get_skill(self, skill_name: str) -> Skill | None:
         return self.skills.get(skill_name)
 
     def list_actions(self) -> list[str]:
@@ -55,21 +55,21 @@ class SkillRegistry:
         """
         Get a routine by <skill>.<routine> designation.
         """
-        skill_name, routine = designation.split(".")
+        skill_name, routine_name = designation.split(".")
         skill = self.get_skill(skill_name)
         if not skill:
             return None
-        return skill.get_routine(routine)
+        return skill.get_routine(routine_name)
 
     async def run_routine_by_designation(
-        self, context: RunContext, designation: str, vars: dict[str, Any] | None = None
+        self, context: RunContext, name: str, vars: dict[str, Any] | None = None
     ) -> Any:
         """
         Run an assistant routine by designation (<skill_name>.<routine_name>).
         """
-        routine = self.get_routine(designation)
+        routine = self.get_routine(name)
         if not routine:
-            raise ValueError(f"Routine {designation} not found.")
+            raise ValueError(f"Routine {name} not found.")
         response = await self.run_routine(context, routine, vars)
         return response
 

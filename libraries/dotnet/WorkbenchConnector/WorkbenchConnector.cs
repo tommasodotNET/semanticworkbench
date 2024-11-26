@@ -394,7 +394,7 @@ public abstract class WorkbenchConnector<TAgentConfig> : IDisposable
 
     public virtual void EnablePingTimer()
     {
-        this._pingTimer?.Change(TimeSpan.FromMilliseconds(PingFrequencyMS), TimeSpan.FromMilliseconds(PingFrequencyMS));
+        this._pingTimer?.Change(TimeSpan.FromMilliseconds(PingFrequencyMsecs), TimeSpan.FromMilliseconds(PingFrequencyMsecs));
     }
 
     public virtual void EnableInitTimer()
@@ -410,16 +410,28 @@ public abstract class WorkbenchConnector<TAgentConfig> : IDisposable
     {
         this.DisableInitTimer();
 
+        this.Log.LogTrace("Initialization in progress...");
+
+        // If the connector endpoint is ready (to be passed to workbench backend)
         if (!string.IsNullOrWhiteSpace(this.ConnectorEndpoint))
         {
-            this.Log.LogTrace("Init complete, connector endpoint: {Endpoint}", this.ConnectorEndpoint);
+            this.Log.LogTrace("Initialization complete, connector endpoint: {Endpoint}", this.ConnectorEndpoint);
             this.EnablePingTimer();
             return;
         }
 
+        // If the connector host is set via configuration, rather than autodetected
+        if (!string.IsNullOrWhiteSpace(this.WorkbenchConfig.ConnectorHost))
+        {
+            this.ConnectorEndpoint = $"{this.WorkbenchConfig.ConnectorHost.TrimEnd('/')}/{this.WorkbenchConfig.ConnectorApiPrefix.TrimStart('/')}";
+            this.Log.LogTrace("Initialization complete, connector endpoint: {Endpoint}", this.ConnectorEndpoint);
+            this.EnablePingTimer();
+            return;
+        }
+
+        // Autodetect the port in use and define the connector endpoint
         try
         {
-            this.Log.LogTrace("Init in progress...");
             IServerAddressesFeature? feat = this._httpServer.Features.Get<IServerAddressesFeature>();
             if (feat == null || feat.Addresses.Count == 0)
             {
@@ -446,7 +458,7 @@ public abstract class WorkbenchConnector<TAgentConfig> : IDisposable
 #pragma warning disable CA1031
         catch (Exception e)
         {
-            this.Log.LogError(e, "Init error");
+            this.Log.LogError(e, "Initialization error: {Message}", e.Message);
             this.EnableInitTimer();
         }
 #pragma warning restore CA1031
@@ -467,7 +479,7 @@ public abstract class WorkbenchConnector<TAgentConfig> : IDisposable
                 name = $"{this.WorkbenchConfig.ConnectorName} [{this.WorkbenchConfig.ConnectorId}]",
                 description = this.WorkbenchConfig.ConnectorDescription,
                 url = this.ConnectorEndpoint,
-                online_expires_in_seconds = 2 + (int)(PingFrequencyMS / 1000)
+                online_expires_in_seconds = 2 + (int)(PingFrequencyMsecs / 1000)
             };
 
             await this.SendAsync(HttpMethod.Put, path, data, null, "PingSWBackend", cancellationToken).ConfigureAwait(false);
@@ -480,7 +492,7 @@ public abstract class WorkbenchConnector<TAgentConfig> : IDisposable
 
     #region internals ===========================================================================
 
-    private const int PingFrequencyMS = 20000;
+    private const int PingFrequencyMsecs = 20000;
 
     public void Dispose()
     {
